@@ -36,7 +36,7 @@ derive instance newtypeSessionID :: Newtype SessionID _
 class SessionStore store m session | store -> m, store -> session where
   newSessionID :: store -> m SessionID
   get :: store -> SessionID -> m (Maybe session)
-  put :: store -> SessionID -> session -> m SessionID
+  put :: store -> SessionID -> session -> m Unit
   delete :: store -> SessionID -> m Unit
 
 type Sessions s = { key :: String, store :: s }

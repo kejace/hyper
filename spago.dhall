@@ -28,6 +28,8 @@
     , "strings"
     , "transformers"
     , "record-extra"
+    , "crypto"
+    , "simple-json"
     ]
 , packages =
     ./packages.dhall
