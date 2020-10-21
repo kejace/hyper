@@ -1,15 +1,12 @@
 module Examples.Sessions where
 
 import Prelude
-import Control.IxMonad ((:*>), (:>>=))
-import Control.Monad.Aff (launchAff)
-import Control.Monad.Aff.Console (log)
-import Control.Monad.Eff (Eff)
-import Control.Monad.Eff.Class (liftEff)
-import Control.Monad.Eff.Console (CONSOLE)
-import Control.Monad.Eff.Exception (EXCEPTION)
-import Control.Monad.Eff.Random (RANDOM)
-import Control.Monad.Eff.Ref (REF)
+import Control.Monad.Indexed.Qualified as Ix
+import Control.Monad.Indexed ((:>>=))
+import Effect.Aff (launchAff)
+import Effect (Effect)
+import Effect.Class (liftEffect)
+import Effect.Class.Console (log)
 import Data.Maybe (Maybe(..))
 import Data.MediaType.Common (textHTML)
 import Hyper.Cookies (cookies)
@@ -20,14 +17,13 @@ import Hyper.Request (getRequestData)
 import Hyper.Response (closeHeaders, contentType, end, redirect, respond, writeStatus)
 import Hyper.Session (deleteSession, getSession, saveSession)
 import Hyper.Status (statusNotFound, statusOK)
-import Node.HTTP (HTTP)
 
 newtype MySession = MySession { userId :: Int }
 
-main :: forall e. Eff (exception :: EXCEPTION, ref :: REF, console :: CONSOLE, http :: HTTP, random ::RANDOM | e) Unit
+main :: Effect Unit
 main = void $ launchAff do
-  store <- liftEff newInMemorySessionStore
-  liftEff (runServer defaultOptionsWithLogging (components store) app)
+  store <- liftEffect newInMemorySessionStore
+  liftEffect (runServer defaultOptionsWithLogging (components store) app)
   where
     components store =
       { sessions: { key: "my-session"
@@ -36,38 +32,38 @@ main = void $ launchAff do
       , cookies: unit
       }
 
-    home =
+    home = Ix.do
       writeStatus statusOK
-      :*> contentType textHTML
-      :*> closeHeaders
-      :*> getSession :>>=
+      contentType textHTML
+      closeHeaders
+      getSession :>>=
           case _ of
-            Just (MySession { userId }) ->
-              lift' (log "Session") :*>
+            Just (MySession { userId }) -> Ix.do
+              lift' (log "Session")
               respond ("You are logged in as user " <> show userId <> ". "
                       <> "<a href=\"/logout\">Logout</a> if you're anxious.")
-            Nothing ->
-              lift' (log "No Session") :*>
+            Nothing -> Ix.do
+              lift' (log "No Session")
               respond "<a href=\"/login\">Login</a> to start a session."
 
-    login =
+    login = Ix.do
       redirect "/"
-      :*> saveSession (MySession { userId: 1 })
-      :*> contentType textHTML
-      :*> closeHeaders
-      :*> end
+      saveSession (MySession { userId: 1 })
+      contentType textHTML
+      closeHeaders
+      end
 
-    logout =
+    logout = Ix.do
       redirect "/"
-      :*> deleteSession
-      :*> closeHeaders
-      :*> end
+      deleteSession
+      closeHeaders
+      end
 
-    notFound =
+    notFound = Ix.do
       writeStatus statusNotFound
-      :*> contentType textHTML
-      :*> closeHeaders
-      :*> respond "Not Found"
+      contentType textHTML
+      closeHeaders
+      respond "Not Found"
 
     -- Simple router for this example.
     router =
@@ -78,6 +74,6 @@ main = void $ launchAff do
         "/logout" -> logout
         _ -> notFound
 
-    app =
+    app = Ix.do
       cookies
-      :*> router
+      router

@@ -1,7 +1,8 @@
 module Hyper.Response where
 
 import Prelude
-import Control.IxMonad ((:>>=), (:*>))
+import Control.Monad.Indexed.Qualified as Ix
+import Control.Monad.Indexed ((:>>=), (:*>))
 import Data.Foldable (class Foldable, traverse_)
 import Data.MediaType (MediaType)
 import Data.Newtype (unwrap)
@@ -66,9 +67,9 @@ headers
      (Conn req (res HeadersOpen) c)
      (Conn req (res BodyOpen) c)
      Unit
-headers hs =
+headers hs = Ix.do
   traverse_ writeHeader hs
-  :*> closeHeaders
+  closeHeaders
 
 contentType
   :: forall m req res b c
@@ -93,9 +94,9 @@ redirect
      (Conn req (res StatusLineOpen) c)
      (Conn req (res HeadersOpen) c)
      Unit
-redirect uri =
+redirect uri = Ix.do
   writeStatus statusFound
-  :*> writeHeader (Tuple "Location" uri)
+  writeHeader (Tuple "Location" uri)
 
 class ResponseWritable b m r where
   toResponse :: forall i. r -> Middleware m i i b

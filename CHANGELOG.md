@@ -1,5 +1,38 @@
 # Changelog
 
+* 0.11.1
+  - Update for new Argonaut version.
+* 0.11.0
+  - Update qualified-do usages to use indexed-monad exports.
+  - Upgrade to node-buffer version 6.
+* 0.10.1
+  - Add node-buffer as direct dependency to avoid incompatible upgrade
+    to version 6.
+* 0.10.0
+  - Updates for PureScript 0.13
+  - Migration to Spago as primary package manager / build tool
+* 0.9.1
+  - Remove redundant ```purescript-argonaut-*``` dependencies to
+    resolve version conflicts. #76
+* 0.9.0
+  - Node server changes:
+    - Move ```ServerOptions``` from ```Hyper.Node.Server``` to
+      ```Hyper.Node.Server.Options``` and rename to ```Options```. #40
+    - Add a ```Hostname``` newtype for ```hostname``` option. #40
+    - Use ```runAff``` instead of ```launchAff``` to correctly handle
+      asynchronous exceptions. #44
+    - In-memory session store:
+      - Fix ```put```/```delete``` bug. #53
+      - Use ```Ref``` instead of ```AVar```. #53
+      - Enable random session ID generation. #53
+    - File server: Detect content-type from file extension. #59
+    - ```Set-Cookie``` attributes #60
+  - ```Semigroup``` instance for ```Form``` type #52
+  - Upgrade to ```purescript-aff``` v5. #50, #64
+  - Migrate to PureScript 0.12. #63
+  - Upgrade dependencies. #63
+  - Add support for qualified-do syntax. #70
+  - Various documentation updates.
 * 0.8.0
   - Add `MonadAff` instance for `Middleware`
   - Add Buffer instance for `ReadableBody`

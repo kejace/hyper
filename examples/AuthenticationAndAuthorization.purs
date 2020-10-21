@@ -9,12 +9,10 @@ module Examples.AuthenticationAndAuthorization where
 
 import Prelude
 
-import Control.IxMonad ((:>>=), (:*>))
-import Control.Monad.Aff.AVar (AVAR)
-import Control.Monad.Aff.Class (class MonadAff)
-import Control.Monad.Eff (Eff)
-import Control.Monad.Eff.Console (CONSOLE)
-import Control.Monad.Eff.Exception (EXCEPTION)
+import Control.Monad.Indexed.Qualified as Ix
+import Control.Monad.Indexed ((:>>=))
+import Effect.Aff.Class (class MonadAff)
+import Effect (Effect)
 import Data.Either (Either(..))
 import Data.HTTP.Method (Method(GET))
 import Data.Maybe (Maybe(Nothing, Just))
@@ -29,8 +27,6 @@ import Hyper.Node.Server (defaultOptionsWithLogging, runServer)
 import Hyper.Request (class Request, getRequestData)
 import Hyper.Response (class Response, class ResponseWritable, ResponseEnded, StatusLineOpen, closeHeaders, contentType, respond, writeStatus)
 import Hyper.Status (Status, statusNotFound, statusOK)
-import Node.Buffer (BUFFER)
-import Node.HTTP (HTTP)
 import Text.Smolder.HTML (a, h1, li, p, section, ul)
 import Text.Smolder.HTML.Attributes as A
 import Text.Smolder.Markup (Markup, text, (!))
@@ -50,11 +46,11 @@ htmlWithStatus
      (Conn req (res StatusLineOpen) c)
      (Conn req (res ResponseEnded) c)
      Unit
-htmlWithStatus status x =
+htmlWithStatus status x = Ix.do
   writeStatus status
-  :*> contentType textHTML
-  :*> closeHeaders
-  :*> respond (render x)
+  contentType textHTML
+  closeHeaders
+  respond (render x)
 
 
 -- Users have user names.
@@ -81,11 +77,11 @@ profileHandler
      (Conn req (res StatusLineOpen) { authentication :: Maybe User | c })
      (Conn req (res ResponseEnded) { authentication :: Maybe User | c })
      Unit
-profileHandler =
-  getConn :>>= \conn →
+profileHandler = Ix.do
+  conn <- getConn
   htmlWithStatus
-  statusOK
-  (view conn.components.authentication)
+    statusOK
+    (view conn.components.authentication)
   where
     view =
       case _ of
@@ -130,7 +126,7 @@ adminHandler =
 -- This could be a function checking the username/password in a database
 -- in your application.
 userFromBasicAuth
-  :: forall m e. MonadAff e m =>
+  :: forall m. MonadAff m =>
      Tuple String String
   -> m (Maybe User)
 userFromBasicAuth =
@@ -155,8 +151,8 @@ getAdminRole conn =
     _ -> pure Nothing
 
 
-app :: forall m e req res b c
-    .  MonadAff (buffer :: BUFFER | e) m
+app :: forall m req res b c
+    .  MonadAff m
     => Request req m
     => Response res m b
     => ResponseWritable b m String
@@ -188,8 +184,8 @@ app = BasicAuth.withAuthentication userFromBasicAuth :>>= \_ → router
             li (a ! A.href "/profile" $ text "Profile")
             li (a ! A.href "/admin" $ text "Administration")
 
-      router =
-        getRequestData :>>= \{ method, url } →
+      router = Ix.do
+        { method, url } <- getRequestData
         case method, url of
           Left GET, "/" ->
             htmlWithStatus statusOK homeView
@@ -204,7 +200,7 @@ app = BasicAuth.withAuthentication userFromBasicAuth :>>= \_ → router
           _, _ ->
             notFound
 
-main :: forall e. Eff (http :: HTTP, console :: CONSOLE, exception :: EXCEPTION, avar :: AVAR, buffer :: BUFFER | e) Unit
+main :: Effect Unit
 main =
   let
     components = { authentication: unit

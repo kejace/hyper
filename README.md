@@ -26,47 +26,47 @@ more about Hyper, check out the [documentation](https://hyper.wickstrom.tech)
 and [the Getting Started
 tutorial](https://hyper.wickstrom.tech/docs/v0.8.0/tutorials/getting-started-with-hyper.html).
 
-<p align="right">
+<p align="center">
 <a href="https://travis-ci.org/owickstrom/hyper"><img alt="Build Status" src="https://travis-ci.org/owickstrom/hyper.svg?branch=master" /></a>
-<a href="https://github.com/owickstrom/hyper/releases"><img alt="Latest release" src="https://img.shields.io/github/release/owickstrom/hyper.svg" /></a>
-
+<a href="https://pursuit.purescript.org/packages/purescript-hyper"><img alt="purescript-hyper on Pursuit" src="https://pursuit.purescript.org/packages/purescript-hyper/badge" /></a>
+<a href="https://github.com/purescript/package-sets"><img alt="Hyper in package-sets" src="https://img.shields.io/endpoint.svg?url=https://package-sets-badge-0lf69kxs4fbd.runkit.sh/hyper" /></a>
 </p>
 
 <hr>
 
-## Prerequisites
+## Development Setup
 
-* PureScript 0.10.6 or higher
+### Prerequisites
+
+* PureScript 0.13.0 or higher
 * NodeJS
-* Bower
-* Pulp
+* [Spago](https://github.com/spacchetti/spago)
 
-## Build
+### Build
 
 Install dependencies and build:
 
 ```bash
-bower install
-pulp build
+spago build
 ```
 
-### Running Tests
+### Run Tests
 
 ```bash
-pulp test
+spago test
 ```
 
-### Running Examples
+### Run Examples
 
 ```bash
 # general format:
-pulp run -I examples --main Examples.<example-name>
+spago run -p examples/<example-name>.purs -m Examples.<example-name>
 
 # for instance to run HelloHyper:
-pulp run -I examples --main Examples.HelloHyper
+spago run -p examples/HelloHyper.purs -m Examples.HelloHyper
 ```
 
-### Building all Examples
+### Build All Examples
 
 ```bash
 make examples

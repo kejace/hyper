@@ -12,9 +12,9 @@ in the PureScript documentation.
 
 .. note::
 
-   Hyper 0.6.0 requires PureScript `version 0.10.6
-   <https://github.com/purescript/purescript/releases/tag/v0.10.6>`__, or
-   higher. If you're using PureScript 0.11.x, upgrade to Hyper 0.7.x or higher.
+   Hyper 0.9.0 requires PureScript `version 0.12.2
+   <https://github.com/purescript/purescript/releases/tag/v0.12.2>`__ or
+   higher.
 
 Start off by generating an empty project by entering the following commands in
 your terminal:
@@ -40,15 +40,13 @@ like this:
    module Main where
 
    import Prelude
-   import Control.IxMonad ((:*>))
-   import Control.Monad.Eff (Eff)
-   import Control.Monad.Eff.Console (CONSOLE)
+   import Control.Monad.Indexed ((:*>))
+   import Effect (Effect)
    import Hyper.Node.Server (defaultOptionsWithLogging, runServer)
    import Hyper.Response (closeHeaders, respond, writeStatus)
    import Hyper.Status (statusOK)
-   import Node.HTTP (HTTP)
 
-   main :: forall e. Eff (console :: CONSOLE, http :: HTTP | e) Unit
+   main :: Effect Unit
    main =
      let app = writeStatus statusOK
                :*> closeHeaders
