@@ -30,6 +30,8 @@
     , "record-extra"
     , "crypto"
     , "simple-json"
+    , "generics-rep"
+    , "debug"
     ]
 , packages =
     ./packages.dhall

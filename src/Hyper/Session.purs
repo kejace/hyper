@@ -26,12 +26,16 @@ import Hyper.Cookies as Cookies
 import Hyper.Middleware (Middleware, lift')
 import Hyper.Middleware.Class (getConn)
 import Hyper.Response (class Response, HeadersOpen)
+import Data.Generic.Rep (class Generic)
+import Data.Generic.Rep.Show (genericShow)
 
 newtype SessionID = SessionID String
 
 derive instance eqSessionID :: Eq SessionID
 derive instance ordSessionID :: Ord SessionID
 derive instance newtypeSessionID :: Newtype SessionID _
+derive instance genericStatus :: Generic SessionID _
+instance showStatus :: Show SessionID where show = genericShow
 
 class SessionStore store m session | store -> m, store -> session where
   newSessionID :: store -> m SessionID

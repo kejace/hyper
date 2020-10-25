@@ -1,25 +1,27 @@
 module Hyper.Test.TestServer where
 
-import Data.String as String
 import Control.Alt ((<|>))
 import Control.Applicative (pure)
-import Control.Monad.Indexed.Qualified as Ix
-import Control.Monad.Indexed (ipure, (:>>=))
 import Control.Monad (class Monad, void)
+import Control.Monad.Indexed (ipure, (:>>=))
+import Control.Monad.Indexed.Qualified as Ix
 import Control.Monad.Writer (WriterT, execWriterT, tell)
 import Control.Monad.Writer.Class (class MonadTell)
 import Data.Either (Either(..))
 import Data.Foldable (fold)
 import Data.Function ((<<<))
 import Data.Functor (map)
+import Data.Generic.Rep (class Generic)
+import Data.Generic.Rep.Show (genericShow)
 import Data.HTTP.Method (CustomMethod, Method(..))
 import Data.Lazy (defer)
 import Data.Maybe (Maybe(Nothing, Just))
 import Data.Monoid (mempty, class Monoid)
 import Data.Newtype (class Newtype, unwrap)
 import Data.Semigroup (class Semigroup, (<>))
-import Foreign.Object as Object
+import Data.String as String
 import Foreign.Object (Object)
+import Foreign.Object as Object
 import Hyper.Conn (Conn)
 import Hyper.Header (Header)
 import Hyper.Middleware (lift')
@@ -27,6 +29,7 @@ import Hyper.Middleware.Class (getConn, modifyConn)
 import Hyper.Request (class ReadableBody, class Request, parseUrl)
 import Hyper.Response (class ResponseWritable, class Response)
 import Hyper.Status (Status)
+import Prelude
 
 -- REQUEST
 
@@ -36,6 +39,11 @@ newtype TestRequest
                 , body :: String
                 , headers :: Object String
                 }
+
+derive instance genericTestRequest :: Generic TestRequest _
+derive instance eqTestRequest :: Eq TestRequest
+
+instance showTestRequest :: Show TestRequest where show = genericShow
 
 defaultRequest :: { url :: String
                   , method :: Either Method CustomMethod
@@ -83,6 +91,11 @@ instance monoidStringBody :: Monoid StringBody where
 
 data TestResponse b state
   = TestResponse (Maybe Status) (Array Header) (Array b)
+
+derive instance genericTestResponse :: Generic (TestResponse b state) _
+derive instance eqTestResponse :: Eq b => Eq (TestResponse b state)
+
+instance showTestResponse :: Show b => Show (TestResponse b state) where show = genericShow
 
 testStatus :: forall b state. TestResponse b state → Maybe Status
 testStatus (TestResponse status _ _) = status
