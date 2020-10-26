@@ -22,7 +22,7 @@ instance sessionStoreInMemorySessionStore :: ( Monad m
                                             (InMemorySessionStore session)
                                             m
                                             session where
-  newSessionID _ = do
+  newSessionID _ = liftEffect do
     id <- liftEffect generatedSessionID
     pure (SessionID id)
 

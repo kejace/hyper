@@ -89,6 +89,7 @@ instance monoidStringBody :: Monoid StringBody where
 
 -- RESPONSE
 
+data TestResponse :: forall k. Type -> k -> Type
 data TestResponse b state
   = TestResponse (Maybe Status) (Array Header) (Array b)
 

@@ -1,8 +1,26 @@
-let upstream =
-      https://github.com/purescript/package-sets/releases/download/psc-0.13.8-20201020/packages.dhall sha256:579d5aa80e14d42f21dace1bc70a03d24b35398081ac01d94d11349d38d58b6c
+let upstream = /home/srghma/projects/upstream.dhall
 
-let overrides = {=}
+let overrides =
+  { spec-should-equal-or-satisfy =
+    { dependencies =
+      [ "console"
+      , "effect"
+      , "psci-support"
+      , "spec"
+      , "contravariant"
+      , "foldable-traversable"
+      ]
+    , repo = "https://github.com/srghma/purescript-spec-should-equal-or-satisfy.git"
+    , version = "master"
+    }
+  }
 
-let additions = {=}
-
-in  upstream // overrides // additions
+in  ( upstream // overrides
+    )
+    with spec.repo = "https://github.com/instateam/purescript-spec.git"
+    with spec.version = "master"
+    with strings.repo = "https://github.com/instateam/purescript-strings.git"
+    with strings.version = "unix-parenthesis"
+    with tuples.repo = "https://github.com/srghma/purescript-tuples.git"
+    with tuples.version = "master"
+    with prelude.version = "master"

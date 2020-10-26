@@ -16,42 +16,39 @@ import Simple.JSON (class ReadForeign, class WriteForeign, readJSON, writeJSON)
 
 foreign import randString :: Effect String
 
-type Key
+type Keys
   = { hmacKey :: String, cipherKey :: String }
 
-mkSecret :: forall m. MonadEffect m => m Key
-mkSecret =
-  liftEffect do
-    hmacKey <- randString
-    cipherKey <- randString
-    pure { hmacKey, cipherKey }
+mkRandomSecretKeys :: Effect Keys
+mkRandomSecretKeys = do
+  hmacKey <- randString
+  cipherKey <- randString
+  pure { hmacKey, cipherKey }
 
-newtype CookieStore session
-  = CookieStore Key
+newtype CookieStore :: forall k. k -> Type
+newtype CookieStore session = CookieStore Keys
 
 derive instance newtypeCookieStore :: Newtype (CookieStore session) _
 
-encrypt :: forall m. MonadEffect m => Key -> String -> m String
-encrypt { cipherKey, hmacKey } text =
-  liftEffect do
-    encrypted <- Cipher.hex Cipher.AES256 cipherKey text
-    hmac <- Hmac.hex Hash.SHA512 hmacKey encrypted
-    pure $ joinWith "," [ hmac, encrypted ]
+encrypt :: Keys -> String -> Effect String
+encrypt { cipherKey, hmacKey } text = do
+  encrypted <- Cipher.hex Cipher.AES256 cipherKey text
+  hmac <- Hmac.hex Hash.SHA512 hmacKey encrypted
+  pure $ joinWith "," [ hmac, encrypted ]
 
-decrypt :: forall m. MonadEffect m => Key -> String -> m (Maybe String)
+decrypt :: Keys -> String -> Effect (Maybe String)
 decrypt { cipherKey, hmacKey } text =
-  liftEffect
-    $ case split (Pattern ",") text of
-        [ hmac, encrypted ] ->
-          let
-            calcHmac = Hmac.hex Hash.SHA512 hmacKey encrypted
+  case split (Pattern ",") text of
+      [ hmac, encrypted ] ->
+        let
+          calcHmac = Hmac.hex Hash.SHA512 hmacKey encrypted
 
-            decryptWhen hmac'
-              | hmac == hmac' = Just <$> Decipher.fromHex Cipher.AES256 cipherKey encrypted
-            decryptWhen _ = pure Nothing
-          in
-            calcHmac >>= decryptWhen
-        _ -> pure Nothing
+          decryptWhen hmac'
+            | hmac == hmac' = Just <$> Decipher.fromHex Cipher.AES256 cipherKey encrypted
+          decryptWhen _ = pure Nothing
+        in
+          calcHmac >>= decryptWhen
+      _ -> pure Nothing
 
 instance sessionStoreCookieStore ::
   ( ReadForeign session
@@ -61,10 +58,10 @@ instance sessionStoreCookieStore ::
   ) =>
   SessionStore (CookieStore session) m session where
   newSessionID _ = pure $ SessionID "new-id"
-  get store id = do
+  get store id = liftEffect do
     text <- decrypt (unwrap store) $ unwrap id
     pure $ text >>= readJSON >>> hush
-  put store _ session = void $ SessionID <$> encrypt (unwrap store) json
+  put store _ session = liftEffect $ void $ SessionID <$> encrypt (unwrap store) json
     where
     json = writeJSON session
   delete store _ = pure unit

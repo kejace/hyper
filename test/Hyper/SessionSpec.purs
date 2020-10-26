@@ -2,6 +2,7 @@ module Hyper.SessionSpec where
 
 import Debug.Trace
 import Prelude
+import Test.Spec.ShouldEqualOrSatisfy
 
 import Control.Monad.Indexed ((:*>))
 import Control.Monad.Writer.Trans (WriterT, execWriterT, runWriterT)
@@ -9,10 +10,16 @@ import Data.Either (Either(..))
 import Data.Lens as Lens
 import Data.Lens.Lens.Tuple as Lens
 import Data.Lens.Record as Lens
+import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Monoid (class Monoid)
 import Data.Newtype (unwrap)
 import Data.NonEmpty (NonEmpty(..))
+import Data.NonEmpty as NonEmpty
+import Data.Predicate (Predicate(..))
+import Data.String.Regex as Regex
+import Data.String.Regex.Flags as Regex
+import Data.String.Regex.Unsafe as Regex
 import Data.Tuple (Tuple(..), fst)
 import Data.Tuple.Nested (type (/\), (/\))
 import Effect.Aff (Aff)
@@ -22,9 +29,10 @@ import Effect.Ref as Ref
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Hyper.Conn (Conn)
-import Hyper.Cookies (Values, cookies)
+import Hyper.Cookies (Values, cookies, setCookie)
+import Hyper.Header (Header)
 import Hyper.Middleware (Middleware, evalMiddleware, runMiddleware)
-import Hyper.Node.Session.Cookie (CookieStore(..), mkSecret)
+import Hyper.Node.Session.Cookie (CookieStore(..), mkRandomSecretKeys)
 import Hyper.Node.Session.InMemory (InMemorySessionStore(..), newInMemorySessionStore)
 import Hyper.Response (class Response, HeadersOpen)
 import Hyper.Session (class SessionStore, delete, deleteSession, get, getSession, newSessionID, put, saveSession)
@@ -33,8 +41,8 @@ import Test.Spec (Spec, it, describe)
 import Test.Spec.Assertions (shouldEqual, shouldNotEqual)
 import Type.Prelude (SProxy(..))
 import Unsafe.Coerce (unsafeCoerce)
-import Data.Map as Map
 
+type MyAff :: forall k. Type -> k -> Type -> Type
 type MyAff bodyChunk stateProxy
   = WriterT (TestResponse bodyChunk stateProxy) Aff
 
@@ -63,192 +71,221 @@ testStore ::
   } ->
   Spec Unit
 testStore { mkStore, printStore, session, resultSession } = do
-  -- | it "retrieves data that was stored" do
-  -- |   store <- mkStore
-  -- |   liftAff (session `shouldNotEqual` resultSession)
-  -- |   id <- runWriterReturnOutput $ newSessionID store
-  -- |   id' <- runWriterReturnOutput $ put store id session
-  -- |   sessionOut <- runWriterReturnOutput $ get store id'
-  -- |   sessionOut `shouldEqual` Just session
-  -- |   id1 <- runWriterReturnOutput $ newSessionID store
-  -- |   id1' <- runWriterReturnOutput $ put store id1 resultSession
-  -- |   sessionOut' <- runWriterReturnOutput $ get store id1'
-  -- |   sessionOut' `shouldEqual` Just resultSession
-  -- |   sessionOutSecond <- runWriterReturnOutput $ get store id'
-  -- |   sessionOutSecond `shouldEqual` Just session
-  -- |   id2 <- runWriterReturnOutput $ newSessionID store
-  -- |   blankSession <- runWriterReturnOutput $ get store id2
-  -- |   blankSession `shouldEqual` Nothing
-  -- |   runWriterReturnOutput $ delete store id'
-  -- |   sessionOutDeleted <- runWriterReturnOutput $ get store id
-  -- |   sessionOutDeleted `shouldEqual` Nothing
-  it "works with getSession/saveSession/deleteSession" do
+  it "retrieves data that was stored" do
     store <- mkStore
+    liftAff (session `shouldNotEqual` resultSession)
+    id <- runWriterReturnOutput $ newSessionID store
+    id' <- runWriterReturnOutput $ put store id session
+    sessionOut <- runWriterReturnOutput $ get store id'
+    sessionOut `shouldEqual` Just session
+    id1 <- runWriterReturnOutput $ newSessionID store
+    id1' <- runWriterReturnOutput $ put store id1 resultSession
+    sessionOut' <- runWriterReturnOutput $ get store id1'
+    sessionOut' `shouldEqual` Just resultSession
+    sessionOutSecond <- runWriterReturnOutput $ get store id'
+    sessionOutSecond `shouldEqual` Just session
+    id2 <- runWriterReturnOutput $ newSessionID store
+    blankSession <- runWriterReturnOutput $ get store id2
+    blankSession `shouldEqual` Nothing
+    runWriterReturnOutput $ delete store id'
+    sessionOutDeleted <- runWriterReturnOutput $ get store id
+    sessionOutDeleted `shouldEqual` Nothing
 
-    (result1 ::
-      ( (Maybe session)
-        /\
-        { components :: { cookies :: Either String (Object (NonEmpty Array String))
-                        , sessions :: { key :: String
-                                      , store :: store
-                                      }
-                        }
-        , request :: TestRequest
-        , response :: TestResponse Void Void
-        }
-      )
-      /\
-      (TestResponse Void Void)
-    ) <-
-      runWriterT $ runMiddleware (cookies :*> getSession)
-        { components:
-          { sessions: { key: "session", store }
-          , cookies: unit
-          }
-        , request: TestRequest defaultRequest
-        , response: TestResponse Nothing [] []
-        }
+  -- | it "works with getSession/saveSession/deleteSession" do
+  -- |   store <- mkStore
 
-    (result1' ::
-      ( (Maybe session)
-        /\
-        { components :: { cookies :: Either String (Object (NonEmpty Array String))
-                        , sessions :: { key :: String
-                                      , store :: Array (Tuple String String)
-                                      }
-                        }
-        , request :: TestRequest
-        , response :: TestResponse Void Void
-        }
-      )
-      /\
-      (TestResponse Void Void)
-    ) <-
-      Lens.over
-      (Lens.traverseOf (Lens._1 <<< Lens._2 <<< Lens.prop (SProxy :: SProxy "components") <<< Lens.prop (SProxy :: SProxy "sessions") <<< Lens.prop (SProxy :: SProxy "store")))
-      printStore
-      result1
+  -- |   (result1 ::
+  -- |     ( (Maybe session)
+  -- |       /\
+  -- |       { components :: { cookies :: Either String (Object (NonEmpty Array String))
+  -- |                       , sessions :: { key :: String
+  -- |                                     , store :: Array (Tuple String String)
+  -- |                                     }
+  -- |                       }
+  -- |       , request :: TestRequest
+  -- |       , response :: TestResponse Void Void
+  -- |       }
+  -- |     )
+  -- |     /\
+  -- |     (TestResponse Void Void)
+  -- |   ) <-
+  -- |     ( runWriterT $ runMiddleware (cookies :*> getSession)
+  -- |       { components:
+  -- |         { sessions: { key: "session", store }
+  -- |         , cookies: unit
+  -- |         }
+  -- |       , request: TestRequest defaultRequest
+  -- |       , response: TestResponse Nothing [] []
+  -- |       }
+  -- |     ) >>=
+  -- |       Lens.over
+  -- |       (Lens.traverseOf (Lens._1 <<< Lens._2 <<< Lens.prop (SProxy :: SProxy "components") <<< Lens.prop (SProxy :: SProxy "sessions") <<< Lens.prop (SProxy :: SProxy "store")))
+  -- |       printStore
 
-    result1' `shouldEqual`
-      Tuple
-        (Tuple
-          Nothing
-          { components:
-            { cookies: Right $ Object.empty
-            , sessions:
-              { key: "session"
-              , store: []
-              }
-            }
-          , request: TestRequest defaultRequest
-          , response: TestResponse Nothing [] []
-          }
-        )
-        ( TestResponse Nothing [] []
-        )
+  -- |   result1 `shouldEqual`
+  -- |     Tuple
+  -- |       (Tuple
+  -- |         Nothing
+  -- |         { components:
+  -- |           { cookies: Right $ Object.empty
+  -- |           , sessions:
+  -- |             { key: "session"
+  -- |             , store: []
+  -- |             }
+  -- |           }
+  -- |         , request: TestRequest defaultRequest
+  -- |         , response: TestResponse Nothing [] []
+  -- |         }
+  -- |       )
+  -- |       ( TestResponse Nothing [] []
+  -- |       )
 
-    (result2 ::
-      ( Unit
-        /\
-        { components :: { cookies :: Either String (Object (NonEmpty Array String))
-                        , sessions :: { key :: String
-                                      , store :: store
-                                      }
-                        }
-        , request :: TestRequest
-        , response :: TestResponse Void HeadersOpen
-        }
-      )
-      /\
-      (TestResponse Void Void)
-    ) <-
-      runWriterT $ runMiddleware (cookies :*> saveSession session)
-        { components:
-          { sessions: { key: "session", store }
-          , cookies: unit
-          }
-        , request: TestRequest defaultRequest
-        , response: TestResponse Nothing [] []
-        }
+  -- |   (result2 ::
+  -- |     ( Unit
+  -- |       /\
+  -- |       { components :: { cookies :: Either String (Object (NonEmpty Array String))
+  -- |                       , sessions :: { key :: String
+  -- |                                     , store :: Array (Tuple String String)
+  -- |                                     }
+  -- |                       }
+  -- |       , request :: TestRequest
+  -- |       , response :: TestResponse Void HeadersOpen
+  -- |       }
+  -- |     )
+  -- |     /\
+  -- |     (TestResponse Void Void)
+  -- |   ) <-
+  -- |     ( runWriterT $ runMiddleware (cookies :*> saveSession session)
+  -- |       { components:
+  -- |         { sessions: { key: "session", store }
+  -- |         , cookies: unit
+  -- |         }
+  -- |       , request: TestRequest defaultRequest
+  -- |       , response: TestResponse Nothing [] []
+  -- |       }
+  -- |     )
+  -- |     >>=
+  -- |       Lens.over
+  -- |       (Lens.traverseOf (Lens._1 <<< Lens._2 <<< Lens.prop (SProxy :: SProxy "components") <<< Lens.prop (SProxy :: SProxy "sessions") <<< Lens.prop (SProxy :: SProxy "store")))
+  -- |       printStore
 
-    (result2' ::
-      ( Unit
-        /\
-        { components :: { cookies :: Either String (Object (NonEmpty Array String))
-                        , sessions :: { key :: String
-                                      , store :: Array (Tuple String String)
-                                      }
-                        }
-        , request :: TestRequest
-        , response :: TestResponse Void HeadersOpen
-        }
-      )
-      /\
-      (TestResponse Void Void)
-    ) <-
-      Lens.over
-      (Lens.traverseOf (Lens._1 <<< Lens._2 <<< Lens.prop (SProxy :: SProxy "components") <<< Lens.prop (SProxy :: SProxy "sessions") <<< Lens.prop (SProxy :: SProxy "store")))
-      printStore
-      result2
+  -- |   result2 `shouldEqualOrSatisfy`
+  -- |     Tuple
+  -- |       (Tuple
+  -- |         unit
+  -- |         { components:
+  -- |           { cookies: (Right (Object.empty) :: Either String (Object (NonEmpty Array String)))
+  -- |           , sessions:
+  -- |             { key: "session"
+  -- |             , store: [(Tuple "randomSessionId" "value1")]
+  -- |             }
+  -- |           }
+  -- |         , request: TestRequest defaultRequest
+  -- |         , response: TestResponse Nothing ([] :: Array Header) ([] :: Array Void)
+  -- |         }
+  -- |       )
+  -- |       (Predicate $ \(x :: TestResponse Void Void) ->
+  -- |         case x of
+  -- |              TestResponse Nothing [(Tuple "Set-Cookie" setCookieValue)] ([] :: Array Void) -> Regex.test (Regex.unsafeRegex """^session=\d+\.\d+;HttpOnly;SameSite=Lax$""" Regex.noFlags) setCookieValue
+  -- |              _ -> false
+  -- |       )
 
-    result2' `shouldEqual`
-      Tuple
-        (Tuple
-          unit
-          { components:
-            { cookies: Right $ Object.empty
-            , sessions:
-              { key: "session"
-              , store: [(Tuple "randomSessionId" "value1")]
-              }
-            }
-          , request: TestRequest defaultRequest
-          , response: TestResponse Nothing [] []
-          }
-        )
-        (TestResponse Nothing [(Tuple "Set-Cookie" "session=1603354488613.827;HttpOnly;SameSite=Lax")] []
-        )
+  -- |   (result3 ::
+  -- |     ( Maybe session
+  -- |       /\
+  -- |       { components :: { cookies :: Either String (Object (NonEmpty Array String))
+  -- |                       , sessions :: { key :: String
+  -- |                                     , store :: Array (Tuple String String)
+  -- |                                     }
+  -- |                       }
+  -- |       , request :: TestRequest
+  -- |       , response :: TestResponse Void HeadersOpen
+  -- |       }
+  -- |     )
+  -- |     /\
+  -- |     (TestResponse Void Void)
+  -- |   ) <-
+  -- |     ( runWriterT $ runMiddleware (cookies :*> getSession)
+  -- |       { components:
+  -- |         { sessions: { key: "session", store }
+  -- |         , cookies: unit
+  -- |         }
+  -- |       , request: TestRequest defaultRequest { headers = Object.singleton "cookie" """session=1000000000000.100""" }
+  -- |       , response: TestResponse Nothing [] []
+  -- |       }
+  -- |     )
+  -- |       >>=
+  -- |         Lens.over
+  -- |         (Lens.traverseOf (Lens._1 <<< Lens._2 <<< Lens.prop (SProxy :: SProxy "components") <<< Lens.prop (SProxy :: SProxy "sessions") <<< Lens.prop (SProxy :: SProxy "store")))
+  -- |         printStore
 
-    pure unit
+  -- |   result3 `shouldEqualOrSatisfy`
+  -- |     Tuple
+  -- |       (Tuple
+  -- |         (Nothing :: Maybe session)
+  -- |         { components:
+  -- |           { cookies: (Right (Object.singleton "session" (NonEmpty.singleton "1000000000000.100")) :: Either String (Object (NonEmpty Array String)))
+  -- |           , sessions:
+  -- |             { key: "session"
+  -- |             , store: [(Tuple "randomSessionId" "value1")]
+  -- |             }
+  -- |           }
+  -- |         , request: TestRequest defaultRequest { headers = Object.singleton "cookie" """session=1000000000000.100""" }
+  -- |         , response: TestResponse Nothing ([] :: Array Header) ([] :: Array Void)
+  -- |         }
+  -- |       )
+  -- |       (TestResponse Nothing ([] :: Array Header) ([] :: Array Void))
 
-    -- | let
-    -- |   newCookies = getSetCookie headers
-    -- | Tuple sessionOut' _ <-
-    -- |   { components:
-    -- |     { sessions: { key: "session", store }
-    -- |     , cookies: unit
-    -- |     }
-    -- |   , request: TestRequest defaultRequest { headers = Object.singleton "cookie" newCookies }
-    -- |   , response: TestResponse Nothing [] []
-    -- |   }
-    -- |     # runMiddleware (cookies :*> getSession)
-    -- |     >>> runWriterReturnOutput
+  -- |   -- ?
+  -- |   -- | sessionOut' `shouldEqual` Just session
 
-    -- | sessionOut' `shouldEqual` Just session
+  -- |   -- | Tuple response (TestResponse _ headers' _) <-
 
-    -- | Tuple response (TestResponse _ headers' _) <-
-    -- |   { components:
-    -- |     { sessions: { key: "session", store }
-    -- |     , cookies: unit
-    -- |     }
-    -- |   , request: TestRequest defaultRequest { headers = Object.singleton "cookie" newCookies }
-    -- |   , response: TestResponse Nothing [] []
-    -- |   }
-    -- |     # evalMiddleware (cookies :*> getSession :*> deleteSession)
-    -- |     >>> runWriterT
-    -- | let
-    -- |   newCookies' = getSetCookie headers'
-    -- | Tuple sessionOut'' _ <-
-    -- |   { components:
-    -- |     { sessions: { key: "session", store }
-    -- |     , cookies: unit
-    -- |     }
-    -- |   , request: TestRequest defaultRequest { headers = Object.singleton "cookie" newCookies' }
-    -- |   , response: TestResponse Nothing [] []
-    -- |   }
-    -- |     # runMiddleware (cookies :*> getSession)
-    -- |     >>> runWriterReturnOutput
-    -- | sessionOut'' `shouldEqual` Nothing
+  -- |   (result4 ::
+  -- |     ( Unit
+  -- |       /\
+  -- |       { components :: { cookies :: Either String (Object (NonEmpty Array String))
+  -- |                       , sessions :: { key :: String
+  -- |                                     , store :: Array (Tuple String String)
+  -- |                                     }
+  -- |                       }
+  -- |       , request :: TestRequest
+  -- |       , response :: TestResponse Void HeadersOpen
+  -- |       }
+  -- |     )
+  -- |     /\
+  -- |     (TestResponse Void Void)
+  -- |   ) <-
+  -- |     ( runWriterT $ runMiddleware (cookies :*> deleteSession)
+  -- |       { components:
+  -- |         { sessions: { key: "session", store }
+  -- |         , cookies: unit
+  -- |         }
+  -- |       , request: TestRequest defaultRequest { headers = Object.singleton "cookie" """session=1000000000000.100""" }
+  -- |       , response: TestResponse Nothing [] []
+  -- |       }
+  -- |     )
+  -- |       >>=
+  -- |         Lens.over
+  -- |         (Lens.traverseOf (Lens._1 <<< Lens._2 <<< Lens.prop (SProxy :: SProxy "components") <<< Lens.prop (SProxy :: SProxy "sessions") <<< Lens.prop (SProxy :: SProxy "store")))
+  -- |         printStore
+
+  -- |   result4 `shouldEqualOrSatisfy`
+  -- |     Tuple
+  -- |       (Tuple
+  -- |         unit
+  -- |         { components:
+  -- |           { cookies: (Right (Object.singleton "session" (NonEmpty.singleton "1000000000000.100")) :: Either String (Object (NonEmpty Array String)))
+  -- |           , sessions:
+  -- |             { key: "session"
+  -- |             , store: [(Tuple "randomSessionId" "value1")]
+  -- |             }
+  -- |           }
+  -- |         , request: TestRequest defaultRequest { headers = Object.singleton "cookie" """session=1000000000000.100""" }
+  -- |         , response: TestResponse Nothing ([] :: Array Header) ([] :: Array Void)
+  -- |         }
+  -- |       )
+  -- |       (TestResponse Nothing [(Tuple "Set-Cookie" "session=;Max-Age=0")] ([] :: Array Void))
 
 spec :: Spec Unit
 spec = do
@@ -261,5 +298,10 @@ spec = do
       , session: "value1"
       , resultSession: "value2"
       }
-  -- | describe "Hyper.Node.Session.Cookie" do
-  -- |   testStore (CookieStore <$> mkSecret) "value1" "value2"
+  describe "Hyper.Node.Session.Cookie" do
+     testStore
+       { mkStore: CookieStore <$> mkRandomSecretKeys
+       , printStore: \(CookieStore store) -> pure []
+       , session: "value1"
+       , resultSession: "value2"
+       }

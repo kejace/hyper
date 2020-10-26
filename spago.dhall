@@ -19,7 +19,6 @@
     , "node-fs-aff"
     , "node-http"
     , "ordered-collections"
-    , "proxy"
     , "psci-support"
     , "random"
     , "smolder"
@@ -32,6 +31,7 @@
     , "simple-json"
     , "generics-rep"
     , "debug"
+    , "spec-should-equal-or-satisfy"
     ]
 , packages =
     ./packages.dhall
